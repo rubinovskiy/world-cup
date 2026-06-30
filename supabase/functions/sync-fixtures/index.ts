@@ -53,7 +53,8 @@ interface Match {
   team1: string;
   team2: string;
   group?: string;
-  score?: { ft?: [number, number] };
+  // et = aggregate after extra time, p = penalty shootout (knockouts only).
+  score?: { ft?: [number, number]; et?: [number, number]; p?: [number, number] };
 }
 
 /** Canonical team token: lowercase, diacritic-free, alphanumeric only. */
@@ -142,6 +143,20 @@ function outcome(ft: [number, number]): '1' | 'X' | '2' {
   return ft[0] > ft[1] ? '1' : ft[0] < ft[1] ? '2' : 'X';
 }
 
+/**
+ * Who advanced from a knockout tie: '1' = team1, '2' = team2, or null if not yet
+ * decided. Penalties have the final say, then the after-extra-time aggregate,
+ * then 90'. Mirrors winningSide() in src/lib/worldcup.ts. A tie level after 90'
+ * with no shootout recorded stays open (the live feed can't report penalties).
+ */
+function koWinner(m: Match): '1' | '2' | null {
+  const s = m.score;
+  if (!s?.ft) return null;
+  const [a, b] = s.p ?? s.et ?? s.ft;
+  if (a === b) return null;
+  return a > b ? '1' : '2';
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
@@ -180,6 +195,15 @@ Deno.serve(async (req) => {
       // Prefer a fresh final (so corrections still land); fall back to the
       // already-settled value rather than blanking it.
       const ft = fresh ?? settled.get(key)?.ft ?? null;
+      // Group games settle on the 90' result (1/X/2). Knockouts settle on who
+      // actually advanced — extra time and penalties included — so a 1-1 won on
+      // penalties resolves to the shootout winner, never 'X'. A level knockout
+      // with no et/p yet stays open until openfootball fills the shootout in.
+      const result = m.group
+        ? ft
+          ? outcome(ft)
+          : null
+        : koWinner(m) ?? (ft && ft[0] !== ft[1] ? outcome(ft) : null);
       rows.push({
         match_key: key,
         team1: m.team1,
@@ -187,7 +211,7 @@ Deno.serve(async (req) => {
         kickoff_utc: new Date(k).toISOString(),
         round: m.round,
         grp: m.group ?? null,
-        result: ft ? outcome(ft) : null,
+        result,
         ft: ft ?? null,
         updated_at: new Date().toISOString(),
       });
