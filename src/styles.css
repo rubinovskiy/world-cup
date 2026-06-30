@@ -326,6 +326,23 @@ tr.me { background: var(--me); }
 tr.me td:first-child { box-shadow: inset 3px 0 0 var(--green); }
 .you-tag { color: var(--green); font-size: 0.82rem; font-weight: 700; }
 
+/* Knocked out of the tournament: dim the row, badge the name. */
+tr.eliminated td { opacity: 0.6; }
+tr.eliminated .player-name { text-decoration: line-through; text-decoration-color: var(--muted); }
+.elim-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #c4544d;
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
 /* ---- Late join ---- */
 .late-join {
   margin-top: 18px;
@@ -1198,6 +1215,7 @@ a.mside:hover .mside-name { color: var(--green); }
 .pred-teams .fx-score { font-weight: 800; color: #fff; }
 
 .pred-choices { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.pred-choices.two { grid-template-columns: 1fr 1fr; } /* knockout: who goes through */
 .pred-opt {
   position: relative;
   overflow: hidden;

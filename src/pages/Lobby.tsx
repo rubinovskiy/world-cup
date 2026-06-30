@@ -582,9 +582,23 @@ function Results({
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ player, team }) => (
-            <tr key={player.id} className={player.id === myId ? 'me' : ''}>
+          {rows.map(({ player, team }) => {
+            // Out of the pot once their team has lost a knockout match (a penalty
+            // exit counts — resultFor resolves ET/pens).
+            const eliminated =
+              !!team &&
+              (formByTeam.get(team) ?? []).some((r) => !r.match.group && r.outcome === 'L');
+            return (
+            <tr
+              key={player.id}
+              className={`${player.id === myId ? 'me' : ''} ${eliminated ? 'eliminated' : ''}`}
+            >
               <td>
+                {eliminated && (
+                  <span className="elim-tag" title="Команда вылетела из турнира">
+                    выбыл
+                  </span>
+                )}
                 <span className="player-name">{player.name}</span>
                 {player.is_ultra && (
                   <span className="ultra-tag" title="Ultra-gambled">🎰</span>
@@ -606,7 +620,8 @@ function Results({
                 )}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       <p className="muted small">

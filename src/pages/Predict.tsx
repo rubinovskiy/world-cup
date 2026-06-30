@@ -6,6 +6,7 @@ import {
   refreshMatches,
   stageLabel,
   kickoffMs,
+  displayScore,
   Match,
 } from '../lib/worldcup';
 import { liveFor, LiveIndex } from '../lib/live';
@@ -371,16 +372,29 @@ function PredictRow({
   const locked = now >= kickoff;
   const info = liveFor(m, liveIdx);
   const isLive = locked && !fixture.result && info?.phase === 'live';
-  const ft = fixture.ft ?? (isLive ? info?.ft : undefined);
+  // Knockout rounds can't end level — offer "who goes through" (2 buttons), not
+  // 1 / X / 2. Group games keep win · draw · win.
+  const isKnockout = !m.group;
+  const options: { pick: Pick; cap: string; team?: string }[] = isKnockout
+    ? [
+        { pick: '1', cap: 'Проход', team: m.team1 },
+        { pick: '2', cap: 'Проход', team: m.team2 },
+      ]
+    : [
+        { pick: '1', cap: 'Победа', team: m.team1 },
+        { pick: 'X', cap: 'Ничья' },
+        { pick: '2', cap: 'Победа', team: m.team2 },
+      ];
+
+  // Extra-time / penalty detail for finished knockouts, so a 1–1 won on penalties
+  // doesn't read as an unresolved draw.
+  const ds = !isLive && m.score?.ft ? displayScore(m) : null;
+  const ft = fixture.ft ?? (isLive ? info?.ft : ds?.ft);
 
   const myPick = me ? picks.find((p) => p.player_id === me.id)?.pick : undefined;
   const tally = (p: Pick) => picks.filter((x) => x.pick === p);
   const total = picks.length;
-  const maxVotes = Math.max(
-    tally('1').length,
-    tally('X').length,
-    tally('2').length,
-  );
+  const maxVotes = Math.max(0, ...options.map((o) => tally(o.pick).length));
 
   // Editable until kickoff: clicking another option just updates the pick.
   const choose = async (pick: Pick) => {
@@ -404,13 +418,6 @@ function PredictRow({
     </span>
   );
 
-  // Three stretched choices: win team1 · draw · win team2.
-  const options: { pick: Pick; cap: string; team?: string }[] = [
-    { pick: '1', cap: 'Победа', team: m.team1 },
-    { pick: 'X', cap: 'Ничья' },
-    { pick: '2', cap: 'Победа', team: m.team2 },
-  ];
-
   return (
     <li className={`pred-card ${isLive ? 'live' : ''} ${locked ? 'locked' : ''}`}>
       <div className="pred-top">
@@ -426,7 +433,14 @@ function PredictRow({
 
       <div className="pred-teams">
         {side(m.team1)}
-        <span className="fx-score">{ft ? `${ft[0]}–${ft[1]}` : ':'}</span>
+        <span className="fx-score">
+          {ft ? `${ft[0]}–${ft[1]}` : ':'}
+          {ds?.pens ? (
+            <span className="score-extra"> ({ds.pens[0]}–{ds.pens[1]} pen)</span>
+          ) : ds?.aet ? (
+            <span className="score-extra"> a.e.t.</span>
+          ) : null}
+        </span>
         {side(m.team2)}
       </div>
 
@@ -442,7 +456,7 @@ function PredictRow({
         />
       )}
 
-      <div className="pred-choices">
+      <div className={`pred-choices ${options.length === 2 ? 'two' : ''}`}>
         {options.map(({ pick, cap, team }) => {
           const voters = tally(pick);
           const isWin = fixture.result === pick;

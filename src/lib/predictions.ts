@@ -122,12 +122,23 @@ export async function getPredictions(): Promise<Map<string, PredictionRow[]>> {
   return idx;
 }
 
+/** Hit rate = correct / settled. Players with nothing settled sort last (−1). */
+export function accuracy(r: LeaderboardRow): number {
+  return r.settled > 0 ? r.points / r.settled : -1;
+}
+
 export async function getLeaderboard(): Promise<LeaderboardRow[]> {
   const { data } = await supabase
     .from('prediction_leaderboard')
     .select('player_id,name,settled,points,picks');
+  // Rank by accuracy; break ties by volume (more settled, then more points) so a
+  // perfect 5/5 outranks a perfect 1/1, then alphabetically.
   return ((data as LeaderboardRow[]) ?? []).sort(
-    (a, b) => b.points - a.points || b.settled - a.settled || a.name.localeCompare(b.name),
+    (a, b) =>
+      accuracy(b) - accuracy(a) ||
+      b.settled - a.settled ||
+      b.points - a.points ||
+      a.name.localeCompare(b.name),
   );
 }
 
