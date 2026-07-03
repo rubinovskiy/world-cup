@@ -16,7 +16,16 @@ import {
 import { overlayFinished } from '../lib/live';
 import { useLiveScores } from '../lib/useLive';
 import { CURRENCIES, convert, getRates } from '../lib/currency';
-import { poolByOdds, getCurrentOdds, getOddsHistory, CurrentOdds, OddsPoint } from '../lib/pool';
+import {
+  POOL,
+  poolByOdds,
+  getCurrentOdds,
+  getOddsHistory,
+  getLateJoinPreview,
+  CurrentOdds,
+  LateJoinPreview,
+  OddsPoint,
+} from '../lib/pool';
 import { OddsTrend } from '../components/OddsTrend';
 import { ULTRA_TEAMS } from '../lib/ultra';
 import { TeamPill } from '../components/TeamPill';
@@ -307,19 +316,27 @@ function plural(n: number, one: string, few: string, many: string): string {
  * a random underdog). Reused for the pre-draw lobby and late joiners. The ultra
  * button is hidden once the main draw has run (offerUltra=false) since the
  * underdog pool is no longer part of the live draw.
+ *
+ * With `late` set (after the draw), submitting first fetches late_join_preview
+ * and shows a confirmation pop-up with the joiner's real title-win odds vs the
+ * top team already in the game — join_lobby is only called if they agree.
  */
 function JoinForm({
   onJoined,
   cta,
   offerUltra = true,
+  late = false,
 }: {
   onJoined: (id: string) => void;
   cta: string;
   offerUltra?: boolean;
+  late?: boolean;
 }) {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // Pop-up state: the fetched preview while we wait for the user to confirm.
+  const [preview, setPreview] = useState<LateJoinPreview | null>(null);
 
   async function join(mode: 'normal' | 'ultra') {
     if (!name.trim()) return;
@@ -336,6 +353,26 @@ function JoinForm({
     onJoined(data as string);
   }
 
+  // Late joiners see their real odds first; registration happens on confirm.
+  async function submitNormal() {
+    if (!late) return join('normal');
+    if (!name.trim()) return;
+    setError('');
+    setBusy(true);
+    try {
+      const p = await getLateJoinPreview();
+      if (!p.team) {
+        setError(friendlyError('NO_TEAMS_LEFT'));
+        return;
+      }
+      setPreview(p);
+    } catch {
+      setError('Не получилось узнать твои шансы — попробуй ещё раз.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const [showInfo, setShowInfo] = useState(false);
 
   return (
@@ -343,7 +380,7 @@ function JoinForm({
       <form
         onSubmit={(e: FormEvent) => {
           e.preventDefault();
-          join('normal');
+          submitNormal();
         }}
         className="signup"
       >
@@ -391,7 +428,79 @@ function JoinForm({
         </>
       )}
       {error && <p className="error">{error}</p>}
+      {preview && (
+        <LateOddsModal
+          preview={preview}
+          onConfirm={() => {
+            setPreview(null);
+            join('normal');
+          }}
+          onCancel={() => setPreview(null)}
+        />
+      )}
     </>
+  );
+}
+
+/** Percent for the pop-up: rounded, honest about tiny-but-nonzero chances. */
+function fmtPct(prob: number | null): string {
+  if (prob == null) return '—';
+  const r = Math.round(prob);
+  return r < 1 ? '<1%' : `${r}%`;
+}
+
+/**
+ * The "know what you're signing up for" pop-up for late joiners: your would-be
+ * team's current bookmaker odds of winning the title (the team itself stays a
+ * surprise) against the top team already in the game. Register only on confirm.
+ * Odds come from team_odds (the numbers on the Lobby chart); if the sync hasn't
+ * run yet, falls back to the pre-tournament Opta figures from POOL.
+ */
+function LateOddsModal({
+  preview,
+  onConfirm,
+  onCancel,
+}: {
+  preview: LateJoinPreview;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const myPct = preview.prob ?? POOL.find((p) => p.team === preview.team)?.prob ?? null;
+  const topPct = preview.topProb ?? POOL.find((p) => p.team === preview.topTeam)?.prob ?? null;
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <h3>⚠️ Поздняя стадия турнира</h3>
+        <p>
+          Топ-команды уже разобраны или вылетели, так что зайти можно только за
+          одну из оставшихся. Вот твои реальные шансы:
+        </p>
+        <div className="odds-compare">
+          <div className="odds-line you">
+            <span>Твои шансы выиграть банк</span>
+            <strong>{fmtPct(myPct)}</strong>
+          </div>
+          <div className="odds-line top">
+            <span>
+              Шансы топ-1 команды{preview.topTeam ? ` (${preview.topTeam})` : ''}
+            </span>
+            <strong>{fmtPct(topPct)}</strong>
+          </div>
+        </div>
+        <p className="muted small">
+          По текущим котировкам букмекеров. Какая именно команда — узнаешь после
+          регистрации 🎁
+        </p>
+        <div className="modal-actions">
+          <button type="button" onClick={onConfirm}>
+            Всё равно захожу 🎲
+          </button>
+          <button type="button" className="link" onClick={onCancel}>
+            Передумал
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -632,8 +741,11 @@ function Results({
 
       {!alreadyJoined && (
         <div className="late-join">
-          <p>Опоздал? Заходи сейчас — получишь одну из оставшихся команд.</p>
-          <JoinForm onJoined={onJoined} cta="Зайти сейчас" offerUltra={false} />
+          <p>
+            Опоздал? Заходи сейчас — получишь лучшую из оставшихся команд, которые
+            ещё не вылетели из турнира.
+          </p>
+          <JoinForm onJoined={onJoined} cta="Зайти сейчас" offerUltra={false} late />
         </div>
       )}
     </section>

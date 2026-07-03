@@ -351,6 +351,52 @@ tr.eliminated .player-name { text-decoration: line-through; text-decoration-colo
 }
 .late-join p { color: var(--muted); margin: 0 0 10px; font-size: 0.92rem; }
 
+/* ---- Late-join odds confirmation pop-up ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(4, 7, 14, 0.72);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+.modal {
+  background: linear-gradient(180deg, var(--bg-1), var(--bg-0));
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  max-width: 440px;
+  width: 100%;
+  padding: 22px;
+}
+.modal h3 { margin: 0 0 10px; font-size: 1.15rem; }
+.modal p { margin: 0 0 12px; color: var(--muted); font-size: 0.93rem; }
+.odds-compare { display: grid; gap: 8px; margin: 14px 0; }
+.odds-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 11px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.93rem;
+}
+.odds-line strong { font-size: 1.3rem; white-space: nowrap; }
+.odds-line.you strong { color: var(--gold); }
+.odds-line.top strong { color: var(--green); }
+.modal-actions {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
 /* ---- Admin ---- */
 .admin { text-align: center; margin-top: 10px; }
 .admin-box {

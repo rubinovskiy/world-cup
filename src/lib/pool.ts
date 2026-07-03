@@ -73,6 +73,38 @@ export async function getCurrentOdds(): Promise<Map<string, CurrentOdds>> {
   return idx;
 }
 
+/**
+ * What a late joiner would sign up for right now, from the late_join_preview
+ * RPC: the (undisclosed) team the server would hand them and the current
+ * bookmaker title-win odds, next to the strongest team already in the game.
+ * Probs are scaled to percent like PoolTeam.prob; null until the first odds sync.
+ */
+export interface LateJoinPreview {
+  /** The team the joiner would receive (null → every alive team is taken). */
+  team: string | null;
+  prob: number | null;
+  /** Strongest still-alive team already held by a player ("top-1"). */
+  topTeam: string | null;
+  topProb: number | null;
+}
+
+export async function getLateJoinPreview(): Promise<LateJoinPreview> {
+  const { data, error } = await supabase.rpc('late_join_preview');
+  if (error) throw new Error(error.message);
+  const d = (data ?? {}) as {
+    team?: string | null;
+    prob?: number | null;
+    top_team?: string | null;
+    top_prob?: number | null;
+  };
+  return {
+    team: d.team ?? null,
+    prob: d.prob != null ? d.prob * 100 : null,
+    topTeam: d.top_team ?? null,
+    topProb: d.top_prob != null ? d.top_prob * 100 : null,
+  };
+}
+
 /** One daily snapshot of a team's title-win probability (percent). */
 export interface OddsPoint {
   /** UTC day, "YYYY-MM-DD". */

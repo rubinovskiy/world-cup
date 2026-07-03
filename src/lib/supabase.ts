@@ -41,7 +41,7 @@ export function friendlyError(message: string): string {
     DUPLICATE_NAME: 'That name is already taken — try another.',
     BAD_PASSCODE: 'Wrong admin passcode.',
     ALREADY_DRAWN: 'The lottery has already been drawn.',
-    NO_TEAMS_LEFT: 'The draw is done and every team is already taken — no spots left.',
+    NO_TEAMS_LEFT: 'Every team still in the tournament is already taken — no spots left.',
     NO_PLAYERS: 'Nobody has signed up yet.',
     NOT_ENOUGH_TEAMS: 'There are more players than teams in the pool.',
     ULTRA_FULL: '🎰 Ultra-pool busted — all 8 underdogs are taken. Join the normal lottery instead.',
